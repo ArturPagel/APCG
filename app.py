@@ -498,6 +498,77 @@ def excluir_categoria(cod):
 
 
 
+# --- CRUD Unidade de Medida ---
+@admin_bp.route('/unidade_medida')
+@admin_required
+def unidade_medida():
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT c.*, p.nome_unidade_, p.sigla_unidade
+        FROM unidade_produto
+        JOIN unidade_medida p ON  = p.cod_unidade
+        ORDER BY c.nome_unidade ASC
+    """)
+    lista_unidade = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template('unidade_medida.html.', unidade_medida=lista_unidade)
+
+
+@admin_bp.route('/unidade_medida/cadastrar', methods=['GET', 'POST'])
+@admin_required
+def cadastrar_unidade():
+    """ Rota para cadastrar uma nova unidade de medida. """
+    if request.method == 'POST':
+        nome = request.form['nome_unidade']
+        sigla = request.form['sigla_unidade']
+        
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+
+
+
+
+@admin_bp.route('/unidade_medida/editar/<int:cod>', methods=['GET', 'POST'])
+@admin_required
+def editar_unidade(cod):
+    """ Rota para editar uma unidade de medida existente. """
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    if request.method == 'POST':
+        nome = request.form['nome_unidade']
+        sigla = request.form['sigla_unidade']
+
+
+
+
+@admin_bp.route('/unidade_medida/excluir/<int:cod>', methods=['POST'])
+@admin_required
+def excluir_unidade(cod):
+    """ Rota para excluir uma unidade de medida. """
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM unidade_medida WHERE cod_unidade = %s", (cod,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Unidade excluída com sucesso!", "sucesso")
+    except mysql.connector.Error as err:
+        flash(f"Não foi possível excluir a categoria. Verifique se ele não está em uso por uma categoria. Erro: {err}", "erro")
+    return redirect(url_for('unidade_medida.html'))
+
+
+
+
+
+
+
+
+
+
 
 
 
