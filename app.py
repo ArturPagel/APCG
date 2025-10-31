@@ -364,20 +364,236 @@ def excluir_pvp(cod):
     except mysql.connector.Error as err:
         # Captura erro se o PVP estiver em uso por uma categoria (chave estrangeira).
         flash(f"Não foi possível excluir o PVP. Verifique se ele não está em uso por uma categoria. Erro: {err}", "erro")
-    return redirect(url_for('admin.pvps'))
+    return redirect(url_for('categorias'))
 
-# --- CRUD para categoria ---
+
+
+# --- CRUD Categorias de Produtos ---
 @admin_bp.route('/categorias')
 @admin_required
 def categorias():
-    """ Rota para listar todas as categorias. """
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM categoria_produto ORDER BY nome_categoria ASC")
+    cursor.execute("""
+        SELECT c.*, p.nome_pvp, p.percentual
+        FROM categoria_produto c
+        JOIN pvp p ON c.pvp_categoria = p.cod_pvp
+        ORDER BY c.nome_categoria ASC
+    """)
     lista_categorias = cursor.fetchall()
     cursor.close()
     conn.close()
     return render_template('categorias.html', categorias=lista_categorias)
+
+
+@admin_bp.route('/categorias/cadastrar', methods=['GET', 'POST'])
+@admin_required
+def cadastrar_categoria():
+    """ Rota para cadastrar um novo categorias. """
+    if request.method == 'POST':
+        nome = request.form['nome_categorias']
+        percentual = request.form['percentual']
+        tipo = request.form['tipo_categorias']
+        
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+
+
+# Validação para impedir o cadastro de mais de um categorias Global ativo.
+    if tipo == 'global':
+        cursor.execute("SELECT cod_categorias FROM pvp WHERE tipo_categorias = 'global' AND ativo = TRUE")
+        if cursor.fetchone():
+                flash("Já existe um categorias Global ativo. Inative o categorias existente antes de cadastrar um novo.", "erro")
+                cursor.close()
+                conn.close()
+                return redirect(url_for('admin.categorias'))
+
+        query = "INSERT INTO categorias (nome_categorias, percentual, tipo_categorias) VALUES (%s, %s, %s)"
+        cursor.execute(query, (nome, percentual, tipo))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("PVP cadastrado com sucesso!", "sucesso")
+        return redirect(url_for('admin.categorias'))
+
+    return render_template('cadastrar_categoria.html')
+
+
+
+@admin_bp.route('/categorias/editar/<int:cod>', methods=['GET', 'POST'])
+@admin_required
+def editar_categoria(cod):
+    """ Rota para editar um categorias existente. """
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    if request.method == 'POST':
+        nome = request.form['nome_categorias']
+        percentual = request.form['percentual']
+        tipo = request.form['tipo_categorias']
+        ativo = 'ativo' in request.form
+
+
+  # Validação para impedir que mais de um categorias Global seja ativado.
+        if tipo == 'global' and ativo:
+            # Procura por outros categorias global ativo que não seja o que está sendo editado.
+            cursor.execute("SELECT cod_categorias FROM categorias WHERE tipo_categorias = 'global' AND ativo = TRUE AND cod_categorias != %s", (cod,))
+            if cursor.fetchone():
+                flash("Já existe outro categorias Global ativo. Inative o categorias existente antes de ativar este.", "erro")
+                cursor.close()
+                conn.close()
+                return redirect(url_for('admin.editar_categorias', cod=cod))
+
+        query = """
+            UPDATE pvp SET nome_categorias = %s, percentual = %s, tipo_categorias = %s, ativo = %s
+            WHERE cod_categorias = %s
+        """
+        cursor.execute(query, (nome, percentual, tipo, ativo, cod))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Categorias atualizado com sucesso!", "sucesso")
+        return redirect(url_for('admin.categorias'))
+
+
+# Se GET, busca dados do PVP para preencher o formulário.
+    cursor.execute("SELECT * FROM categorias WHERE cod_categorias = %s", (cod,))
+    categoria = cursor.fetchone()
+    if not categoria:
+        flash("Categoria não encontrada.", "erro")
+        return redirect(url_for('admin.categorias'))
+    
+    cursor.close()
+    conn.close()
+    return render_template('categorias.html', categoria=categoria)
+
+
+
+
+@admin_bp.route('/categorias/excluir/<int:cod>', methods=['POST'])
+@admin_required
+def excluir_categoria(cod):
+    """ Rota para excluir uma categoria. """
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM categoria WHERE cod_categorias = %s", (cod,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Categoria excluída com sucesso!", "sucesso")
+    except mysql.connector.Error as err:
+        # Captura erro se o categoria estiver em uso por uma categoria (chave estrangeira).
+        flash(f"Não foi possível excluir a categoria. Verifique se ele não está em uso por uma categoria. Erro: {err}", "erro")
+    return redirect(url_for('categorias'))
+
+
+
+
+
+
+
+
+
+
+@admin_bp.route('/unidade_medida')
+@admin_required
+def unidade():
+    """ Rota para listar todas as medidas. """
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM unidade_medida ORDER BY nome_unidade ASC")
+    lista_unidade = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template('unidade_medida.html', unidade_medidas=lista_unidade)
+
+
+
+@admin_bp.route('/unidade_medida/cadastrar', methods=['GET', 'POST'])
+@admin_required
+def cadastrar_unidade():
+    """ Rota para cadastrar uma nova medida. """
+    if request.method == 'POST':
+        nome = request.form['nome_unidade']
+        sigla = request.form['sigla_unidade']
+        cod = request.form['cod_unidade']
+        
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+
+        query = "INSERT INTO unidade_medida (nome_unidade, sigla_unidade, cod_unidade) VALUES (%s, %s, %s)"
+        cursor.execute(query, (nome, sigla, cod))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Unidade de medida cadastrada com sucesso!", "sucesso")
+        return redirect(url_for('admin.unidade'))
+
+    return render_template('cadastrar_unidade.html')
+
+@admin_bp.route('/unidade_medida/editar/<int:cod>', methods=['GET', 'POST'])
+@admin_required
+def editar_medida(cod):
+    """ Rota para editar uma medida. """
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+
+    if request.method == 'POST':
+        nome = request.form['nome_unidade']
+        sigla = request.form['sigla_unidade']
+        
+        query = "UPDATE unidade_medida SET nome_unidade = %s, sigla_unidade = %s"
+        cursor.execute(query, (nome, sigla, cod))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Medida atualizada com sucesso!", "sucesso")
+        return redirect(url_for('admin.unidade'))
+
+    # Se GET, busca dados da medida para preencher o formulário.
+    cursor.execute("SELECT * FROM unidade_medida WHERE cod_unidade = %s", (cod,))
+    unidade_medida = cursor.fetchone()
+    if not unidade_medida:
+        flash("Unidades de medida não encontrada.", "erro")
+        return redirect(url_for('admin.unidade'))
+    
+    cursor.close()
+    conn.close()
+    return render_template('editar_medida.html', unidade_medida=unidade_medida)
+
+@admin_bp.route('/unidade_medida/excluir/<int:cod>', methods=['POST'])
+@admin_required
+def excluir_unidade(cod):
+    """ Rota para excluir uma medida. """
+
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM unidade_medida WHERE cod_unidade = %s", (cod,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    flash("Medida excluída com sucesso!", "sucesso")
+    
+    return redirect(url_for('admin.unidade'))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
